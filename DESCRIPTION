@@ -1,0 +1,28 @@
+Package: vijaynbastats
+Type: Package
+Title: What the Package Does (Title Case)
+Version: 0.1.0
+Authors@R: c(
+    person("R. Mark", "Sharp", email = "rmsharp@me.com", 
+    comment = c(ORCID = "0000-0002-6170-6942"), 
+    role = c("aut", "cre", "cph", "dtc")))
+Description: Demonstratin of some simple statistical analysis of selected NBA 
+    players using data from the 2021 NBA playoffs. 
+License: MIT + file LICENSE
+Imported:
+    dplyr,
+    stringi,
+    utils
+Suggests:
+    covr,
+    devtools,
+    here,
+    kableExtra,
+    knitr,
+    markdown,
+    pkgdown,
+    roxygen2,
+    testthat
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.1

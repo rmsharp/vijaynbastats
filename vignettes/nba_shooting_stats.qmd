@@ -1,0 +1,191 @@
+---
+title: "NBA Statistics Project"
+format: html
+---
+
+## Problem Statements
+
+1.	What is the best shooting position for each player?
+2.	At what range each player is most likely to score a shot?
+3.	Who of these players is the best defender?
+4.	On whom of these players would you put the best defender?
+5.	Do the efficiency of a shooter and the player defending him correlate?
+6.	How are taken and missed shots distributed spatially on the court?
+
+## Description of the Data
+
+This dataset is based on shooting statistics that can be found on [NBA.com](
+https://www.nba.com/stats/players/shooting/?Season=2020-21&SeasonType=Playoffs&PerMode=Totals). 
+It consists of shots taken by four different players during the 2021 NBA 
+Playoffs.
+
+----------------------------------------------------------------------
+
+### Data Dictionary
+
+|Variable |Class     |Description                                                  |       
+|:--------|:---------|:------------------------------------------------------------|     
+|SHOOTER  |string    |Name of the player taking the shot                           |     
+|X        |float     |Horizontal distance of the shot taken from the baseline in feet|     
+|Y        |float     |Vertical distance of the shot taken from the baseline in feet  |     
+|RANGE    |string    |Radius range of the shot taken from the baseline in feet       |     
+|DEFENDER |string    |Name of the player defending the shot                        |     
+|SCORE    |string    |'MADE' if shot is scored, else 'MISSED'                      |     
+
+----------------------------------------------------------------------     
+
+### Loading Data 
+
+```{r}
+#| label: load-data
+#| echo: true
+library(vijaynbastats)
+library(dplyr)
+library(here)
+library(ggplot2)
+
+nba_players_shooting <- read.csv(here::here("data/nba_players_shooting.csv"))
+shots <- nba_players_shooting # shortened version and will be augmented
+```
+
+There are `r nrow(shots)` rows and `r ncol(shots)` 
+columns (`r get_and_or_list(names(shots))`) in the dataset.
+
+### Statistics To Be Used
+
+#### Some Definitions
+
+| Initialism | Definition                                               |
+|:-----------|:---------------------------------------------------------|
+| _PTS_        | Points scored                                            |
+| _FGA_        | Field goals attempted                                    |
+| _FTA_        | Free throws attempted                                    |
+| _C~FTA~_     | Free throws attempted multiplier (coeficient)            |
+| _TS_         | True shooting percentage                                 |
+------------------------------------------------------------------------
+
+
+    1.  True Shooting Percentage (TS) : A measure of shooting efficiency 
+        that takes into account field goals, 3-point field goals, and free 
+        throws. It is defined as:   
+    
+$$
+TS = \frac{0.5 * PTS}{FGA + (C_{FTA} * FTA)}
+$$
+
+    2.   Average Shooting Defense (ASD): 1 minus the average shooting 
+         success of all players against a specific defender.   
+    3.   Expected Shooting (ES): The expected shooting success of a
+         player against a specific defender. Equal to 1 minus the defender's
+         Average Shooting Defense.
+    4.   Shooting Success (SS): The shooting success of a player against a
+         specific defender. 
+    5.   Mean Shooting Success (MSS): The mean of shooting success 
+    4.   Relative Shooting Success (RSS): A measure of how efficient a player is
+         at scoring points relative to the expected points scored by an average
+         player against the same primary defender. Equal to the player's 
+         shooting success divided by the defender's Average Shooting Defense.
+
+### Pull In Summary Statistics from Basketball Reference
+
+```{r}
+#| label: pull-summary-stats
+#| echo: true
+#| eval: true
+players <- sort(unique(shots$SHOOTER))
+
+summary_stats <- read.csv(here::here(
+  "inst/extdata/csv_files/2021_nba_playoff_stats.csv"))
+summary_stats <- summary_stats[summary_stats$Player %in% players, ]
+
+```
+
+
+### Adding Distance and Polar Coordinates for Each Shot
+
+```{r}
+#| label: add-distance
+#| echo: true
+#| eval: true
+#| tbl_cap: "Data with Distance Added"
+
+shots <- shots |>
+  mutate(DISTANCE = sqrt(X^2 + Y^2),
+         POLAR_ANGLE = atan2(Y, X) * 180 / pi)
+points <- integer(length(shots$DISTANCE))
+three_point <- logical(length(shots$DISTANCE))
+for (i in seq_along(shots$DISTANCE)) {
+  points[i] <- get_points(shots$X[i], 
+                          shots$Y[i], 
+                          shots$SCORE[i])
+  three_point[i] <- is_three_point(shots$X[i], 
+                                   shots$Y[i])
+}
+shots$POINTS <- points
+shots$THREE_POINT <- three_point
+
+
+sc_threes <- shots[shots$SHOOTER == "Seth Curry", "THREE_POINT"]
+sc_points <- shots[shots$SHOOTER == "Seth Curry", "POINTS"]
+```
+
+Note that my calculation of what is a three point shot is based on the NBA
+rules at https://official.nba.com/rule-no-1-court-dimensions-equipment/ and
+the X and Y coordinates of the shots taken. See the function `is_three_point`
+for the implementation. However, the official NBA statistics for these games 
+has Seth Curry with 
+`r summary_stats$X3PA[summary_stats$Player == "Seth Curry"]` 
+three point attempts and 
+`r summary_stats$X3P[summary_stats$Player == "Seth Curry"]` 
+three point shots made. While I have calculated 
+`r sum(sc_threes)` three point attempts and 
+`r sum(ifelse(sc_points == 3, 1, 0))` three point shots made. The discrepancy
+is made up in the two point shots which are missing the 
+`r sum(sc_threes) - summary_stats$X3PA[summary_stats$Player == "Seth Curry"]`
+shots.
+
+```{r}
+#| label: fig-curry-shot-locations
+#| echo: true
+#| eval: true
+# Change the point size, and shape
+ggplot(shots[shots$SHOOTER == "Seth Curry", ], aes(x = X, y = Y)) +
+  geom_point(size = 2, col = shots[shots$SHOOTER == "Seth Curry", ]$POINTS + 1)
+```
+
+### Add Shot Value in Points Based on Shot Distance and Location
+
+```{r}
+#| label: add-shot-value
+#| echo: true
+#| eval: true
+#| tbl_cap: "Data with Shot Value Added"
+
+```{r}
+#| label: tbl-player-ts
+#| echo: true
+#| eval: true
+#| tbl_cap: "True Shooting Percentage for Each Player During 2021 Playoffs"
+players <- sort(unique(shots$SHOOTER))
+ts <- numeric(length(players))
+for (i in seq_along(players)) {
+  player_data <- shots[shots$SHOOTER == players[i], ]
+  stats <- summary_stats[summary_stats$Player == players[i], ]
+  fta <- stats$FTA
+  fga <- stats$FGA
+  pts <- stats$PTS
+  pts2 <- stats$`2P`
+  pts3 <- stats$`3P`
+  ft <- stats$FT
+  fta <- stats$FTA
+  ts[i] <- true_shooting_percentage(pts = pts, 
+                                    fga = fga,
+                                    fta = fta)
+}
+ts_tbl <- data.frame(PLAYER = players, TS = ts, stringsAsFactors = FALSE)
+ts_tbl |>
+  dplyr::arrange(desc(TS)) |>
+  knitr::kable()
+```
+
+
