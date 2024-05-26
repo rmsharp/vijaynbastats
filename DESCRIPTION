@@ -21,6 +21,7 @@ Suggests:
     knitr,
     markdown,
     pkgdown,
+    renv,
     roxygen2,
     testthat
 Encoding: UTF-8
