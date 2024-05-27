@@ -23,7 +23,8 @@ Suggests:
     pkgdown,
     renv,
     roxygen2,
-    testthat
+    testthat,
+    tidyr
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.1

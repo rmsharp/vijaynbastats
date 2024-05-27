@@ -42,6 +42,7 @@ Playoffs.
 library(vijaynbastats)
 library(dplyr)
 library(here)
+library(knitr)
 library(ggplot2)
 
 nba_players_shooting <- read.csv(here::here("data/nba_players_shooting.csv"))
@@ -99,8 +100,22 @@ summary_stats <- read.csv(here::here(
 summary_stats <- summary_stats[summary_stats$Player %in% players, ]
 
 ```
+<!--### Playing with Circular Plots -->
 
+```{r}
+#| label: where-does-arc-meet-3-ft-line
+#| echo: false
+#| eval: false
+library(plotrix)
+ plot(1:25,seq(-25,25,length=25),type="n",xlab="",ylab="",main="Test draw.circle"); draw.circle(0, 5.25, radius = c(23.5, 23.75), nv = 100, border = "purple", col = c("blue", "white"), lty = 1, lwd = 0.25)
+ #
+ # col=c("#ff00ff","#ff77ff","#ffccff"),lty=1,lwd=1)
+ #draw.circle(2.5,8,0.6,border="red",lty=3,lwd=3)
+ #draw.circle(4,3,0.7,border="green",col="yellow",lty=1,
+ # density=5,angle=30,lwd=10)
+ #draw.circle(3.5,8,0.8,border="blue",lty=2,lwd=2)
 
+```
 ### Adding Distance and Polar Coordinates for Each Shot
 
 ```{r}
@@ -110,8 +125,7 @@ summary_stats <- summary_stats[summary_stats$Player %in% players, ]
 #| tbl_cap: "Data with Distance Added"
 
 shots <- shots |>
-  mutate(DISTANCE = sqrt(X^2 + Y^2),
-         POLAR_ANGLE = atan2(Y, X) * 180 / pi)
+  mutate(DISTANCE = sqrt(X^2 + abs(Y - 5.25)^2))
 points <- integer(length(shots$DISTANCE))
 three_point <- logical(length(shots$DISTANCE))
 for (i in seq_along(shots$DISTANCE)) {
@@ -127,39 +141,75 @@ shots$THREE_POINT <- three_point
 
 sc_threes <- shots[shots$SHOOTER == "Seth Curry", "THREE_POINT"]
 sc_points <- shots[shots$SHOOTER == "Seth Curry", "POINTS"]
+sc_three_df <- shots[shots$SHOOTER == "Seth Curry" & shots$THREE_POINT == TRUE, c("X", "Y", "DISTANCE")]
+sc_three_df
+
+ 
 ```
 
 Note that my calculation of what is a three point shot is based on the NBA
 rules at https://official.nba.com/rule-no-1-court-dimensions-equipment/ and
 the X and Y coordinates of the shots taken. See the function `is_three_point`
-for the implementation. However, the official NBA statistics for these games 
+for the implementation. However, note the comparison of Seth Curry's shot 
+from the official NBA statistics for these games and those classified by the
+`is_three_point` function. 
+
+```{r}
+#| label: compare-seth-curry-shots
+#| echo: true
+#| eval: true
+sc_tbl <- data.frame(
+  SOURCE = c("is_three_point()", "Official NBA Stats"),
+  FGA = c(length(sc_points), 
+          summary_stats$FGA[summary_stats$Player == "Seth Curry"]),
+  FG =c(sum(sc_points > 0), 
+        summary_stats$FG[summary_stats$Player == "Seth Curry"]),
+  X2PA = c((length(sc_points) - sum(sc_threes)), 
+           summary_stats$X2PA[summary_stats$Player == "Seth Curry"]),
+  X2P = c(sum(ifelse(sc_points == 2, 1, 0)),
+          summary_stats$X2P[summary_stats$Player == "Seth Curry"]),
+  X3PA = c(sum(sc_threes), 
+           summary_stats$X3PA[summary_stats$Player == "Seth Curry"]),
+  X3P = c(sum(ifelse(sc_points == 3, 1, 0)),
+          summary_stats$X3P[summary_stats$Player == "Seth Curry"])
+)
+sc_tbl |>
+  kable(caption = "Comparison of Seth Curry's Shots")
+```
+
 has Seth Curry with 
+`r summary_stats$FGA[summary_stats$Player == "Seth Curry"]` field goal attempts,
 `r summary_stats$X3PA[summary_stats$Player == "Seth Curry"]` 
-three point attempts and 
+three point attempts, and 
 `r summary_stats$X3P[summary_stats$Player == "Seth Curry"]` 
 three point shots made. While I have calculated 
-`r sum(sc_threes)` three point attempts and 
+`r length(sc_points)` field goal attempts,
+`r sum(sc_threes)` three point attempts, and 
 `r sum(ifelse(sc_points == 3, 1, 0))` three point shots made. The discrepancy
-is made up in the two point shots which are missing the 
-`r sum(sc_threes) - summary_stats$X3PA[summary_stats$Player == "Seth Curry"]`
-shots.
+is made up in the two point shots which have an extra
+`r summary_stats$X3PA[summary_stats$Player == "Seth Curry"] - sum(sc_threes)`
+shots taken.
 
 ```{r}
 #| label: fig-curry-shot-locations
 #| echo: true
 #| eval: true
 # Change the point size, and shape
+# Assign preferred colors to shot locations
+shots <- shots |> 
+  mutate(SHOT_COLOR = case_when(
+    POINTS == 0 ~ "#00000022",
+    POINTS == 2 ~ "#00ff00AA",
+    POINTS == 3 ~ "red"
+  )
+)
 ggplot(shots[shots$SHOOTER == "Seth Curry", ], aes(x = X, y = Y)) +
-  geom_point(size = 2, col = shots[shots$SHOOTER == "Seth Curry", ]$POINTS + 1)
+  geom_point(size = 2, col = shots[
+    shots$SHOOTER == "Seth Curry", "SHOT_COLOR"])
 ```
 
-### Add Shot Value in Points Based on Shot Distance and Location
+### Calculate True Shooting Percentage
 
-```{r}
-#| label: add-shot-value
-#| echo: true
-#| eval: true
-#| tbl_cap: "Data with Shot Value Added"
 
 ```{r}
 #| label: tbl-player-ts
@@ -174,8 +224,8 @@ for (i in seq_along(players)) {
   fta <- stats$FTA
   fga <- stats$FGA
   pts <- stats$PTS
-  pts2 <- stats$`2P`
-  pts3 <- stats$`3P`
+  pts2 <- stats$X2P
+  pts3 <- stats$X3P
   ft <- stats$FT
   fta <- stats$FTA
   ts[i] <- true_shooting_percentage(pts = pts, 
@@ -186,6 +236,79 @@ ts_tbl <- data.frame(PLAYER = players, TS = ts, stringsAsFactors = FALSE)
 ts_tbl |>
   dplyr::arrange(desc(TS)) |>
   knitr::kable()
+```
+
+### Creation of Weighted Shooting Stats
+
+Weighted offensive shooting statistics are calculated by multiplying statistic 
+by the 
+number of times a specific shooter and defender combination occurs divided by
+the total times a specific shooter met any defender. Weighted defensive shooting 
+statistics are similarly calculated by multiplying the statistic by the number 
+of times a specific defender and shooter combination occurs divided by the total
+times a specific defender met any shooter. 
+See @tbl-make-weighted-shooting-stats.
+
+```{r}
+#| label: make-weighted-shooting-stats
+#| echo: true
+#| eval: true
+library(tidyr)
+
+wt_stats <- function(shots) {
+  shooters <- rep(players, each = length(players))
+  defenders <- rep(players, length(players))
+  deletes <- seq(-1, to = -length(shooters), by = -5)
+  shooters <- shooters[deletes]
+  defenders <- defenders[deletes]
+  stats <- c("FG", "FGA", "X2P", "X2PA", "X3P", "X3PA", "PTS")
+  stat_df <- data.frame(shooter = rep(shooters, length(stats)),
+                   defender = rep(defenders, length(stats)),
+                   stats = rep(stats, each = length(shooters)),
+                   stringsAsFactors = FALSE)
+  values <- integer(nrow(stat_df))
+  for (i in seq_len(nrow(stat_df))) {
+    shooter <- stat_df$shooter[i]
+    defender <- stat_df$defender[i]
+    stat <- stat_df$stats[i]
+    values[i] <- case_when(
+      stat_df$stats[i] == "FG" ~ sum(shots[shots$SHOOTER == shooter & 
+                                     shots$DEFENDER == defender, "POINTS"] > 0),
+      stat_df$stats[i] == "FGA" ~ nrow(shots[shots$SHOOTER == shooter & 
+                                      shots$DEFENDER == defender, ]),
+      stat_df$stats[i] == "X2P" ~ sum(shots[shots$SHOOTER == shooter & 
+                                          shots$DEFENDER == defender, "POINTS"] == 2),
+      stat_df$stats[i] == "X2PA" ~ nrow(shots[shots$SHOOTER == shooter &
+                                       shots$DEFENDER == defender & 
+                                       shots$THREE_POINT == FALSE, ]),
+      stat_df$stats[i] == "X3P" ~ sum(shots[shots$SHOOTER == shooter & 
+                                          shots$DEFENDER == defender, "POINTS"] == 3),
+      stat_df$stats[i] == "X3PA" ~ nrow(shots[shots$SHOOTER == shooter &
+                                       shots$DEFENDER == defender & 
+                                       shots$THREE_POINT, ]),
+      stat_df$stats[i] == "PTS" ~ sum(shots[shots$SHOOTER == shooter &
+                                     shots$DEFENDER == defender, "POINTS"])
+    )
+
+  }
+  stat_df$value <- values
+  stat_df |>
+    pivot_wider(
+    names_from = stats,
+    values_from = value
+  )
+}
+```
+```{r}
+#| label: tbl-weights-for-weighted-shooting-stats
+#| echo: true
+#| eval: true
+#| results: 'asis'
+#| tbl_cap: "Weights for Weighted Shooting Statistics for Each Player"
+wt_stats(shots) |>
+  knitr::kable()
+```
+
 ```
 
 

@@ -7,9 +7,13 @@
 #' middle of the basket which intersects the parallel lines.
 #'
 #' The court is 50 feet wide and 94 feet long. The three point line is 23.75
-#' when the shot is over 14 feet from the baseline. It decreases to 22 feet as
-#' the shooter gets closer to the baseline along the 14 foot line on each side
-#' of the court.
+#' from the center of the basket. It decreases to 22 feet as
+#' the shooter gets closer to the baseline along the 14 foot line three feet
+#' from the side of the court.
+#'
+#' The center of the basket is 5.25 feet from the
+#' nearest baseline.
+
 #'
 #' @param x Horizontal distance of the shot taken from the baseline in feet
 #' @param y Vertical distance of the shot taken from the baseline in feet
@@ -18,20 +22,15 @@
 #' @export
 #'
 is_three_point <- function(x, y) {
-  distance <- sqrt(x^2 + y^2)
+  b_y <- 5.25 # center of basket y;  center of basket x == 0 and thus ignored
+  distance <- sqrt(x^2 + abs(y - b_y)^2) # distance from center of basket
 
-  if (distance > 23.75)
+  if (distance >= 23.75)
     return(TRUE)
-  else if (distance <= 22)
+  else if (abs(x) >= 21.9)
+    return(TRUE)
+  else if (distance < 21.9)
       return(FALSE)
-  else {
-    if (y <= 14) { # 14 foot line from baseline parallel to the sideline
-      if (abs(x) > 22)
-        return(TRUE)
-      else
-        return(FALSE)
-    } else {
-      return(FALSE)
-    }
-  }
+  else
+    return(FALSE)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/is_three_point.R
 \name{is_three_point}
 \alias{is_three_point}
-\title{Is three point shot based on distance and angle}
+\title{Is three point shot based on X and Y coordinates}
 \usage{
 is_three_point(x, y)
 }
@@ -15,16 +15,18 @@ is_three_point(x, y)
 TRUE if 3 point shot, FALSE otherwise
 }
 \description{
-Is three point shot based on distance and angle
+The calculations are based on the NBA three point line rules found at
+https://official.nba.com/rule-no-1-court-dimensions-equipment/
+Section 1 D. The three-point field goal area has parallel lines 3’ from the
+sidelines, extending from the baseline and an arc of 23’9” from the
+middle of the basket which intersects the parallel lines.
 }
-\examples{
-get_points(0, 0) # FALSE
-get_points(23.75, 0) # TRUE
-get_points(20.75, 23) # FALSE
-get_points(22, 100) # FALSE
-get_points(22, 0) # TRUE
-get_points(23.75, 0) # TRUE
-get_points(23.75, 100) # TRUE
-get_points(23.75, 140) # TRUE
+\details{
+The court is 50 feet wide and 94 feet long. The three point line is 23.75
+from the center of the basket. It decreases to 22 feet as
+the shooter gets closer to the baseline along the 14 foot line three feet
+from the side of the court.
 
+The center of the basket is 5.25 feet from the
+nearest baseline.
 }
