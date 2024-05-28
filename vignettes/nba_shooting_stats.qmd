@@ -40,21 +40,23 @@ Playoffs.
 #| label: load-data
 #| echo: true
 library(vijaynbastats)
-library(dplyr)
-library(here)
-library(knitr)
+suppressMessages(library(dplyr))
 library(ggplot2)
+suppressMessages(library(here))
+library(kableExtra)
+library(knitr)
 
 nba_players_shooting <- read.csv(here::here("data/nba_players_shooting.csv"))
 shots <- nba_players_shooting # shortened version and will be augmented
 ```
 
 There are `r nrow(shots)` rows and `r ncol(shots)` 
-columns (`r get_and_or_list(names(shots))`) in the dataset.
+columns (`r get_and_or_list(names(shots))`) in the dataset, which represents
+shots taken and defended by four different players (
+`r get_and_or_list(sort(unique(nba_players_shooting$SHOOTER)))`).
+during the 2021 NBA Playoffs.
 
 ### Statistics To Be Used
-
-#### Some Definitions
 
 | Initialism | Definition                                               |
 |:-----------|:---------------------------------------------------------|
@@ -66,26 +68,39 @@ columns (`r get_and_or_list(names(shots))`) in the dataset.
 ------------------------------------------------------------------------
 
 
-    1.  True Shooting Percentage (TS) : A measure of shooting efficiency 
-        that takes into account field goals, 3-point field goals, and free 
-        throws. It is defined as:   
+
+    1.   Average Shooting Defense (ASD): 1 minus the average shooting 
+         success of all players against a specific defender.   
+    2.   Expected Shooting (ES): The expected shooting success of a
+         player against a specific defender. Equal to 1 minus the defender's
+         Average Shooting Defense.
+    3.   Shooting Success (SS): The shooting success of a player against a
+         specific defender. 
+    4.   Weighted Shooting Success (WSS): The shooting success of a player 
+         against a specific defender weighted by the number of shots taken 
+         against that defender divided by the total number of shots taken by
+         the shooter.
+    5.   Mean Shooting Success (MSS): The mean of shooting success for a 
+         specific shooter. The MSS should be equal to the sum of all WSS for a
+         specific shooter.
+    6.   Relative Shooting Success (RSS): A measure of how efficient a player is
+         at scoring points relative to the expected points scored by an average
+         player against the same primary defender. Equal to the player's 
+         shooting success divided by the defender's Average Shooting Defense.
+    7.   Relative Shooting Success Index (RSSI): A measure of how efficient a 
+         player is at scoring points relative to the expected points scored by 
+         an average player against the same primary defender. Equal to the 
+         player's shooting success divided by the defender's Average Shooting 
+         Defense, weighted by the number of shots taken against that defender 
+         divided by the total number of shots taken by the shooter.
+    5.   True Shooting Percentage (TS) A measure of shooting efficiency 
+         that takes into account field goals, 3-point field goals, and free 
+         throws. It will be calculated directly from summary statistics 
+         provided by the NBA for the same playoffs. It is defined as:   
     
 $$
 TS = \frac{0.5 * PTS}{FGA + (C_{FTA} * FTA)}
 $$
-
-    2.   Average Shooting Defense (ASD): 1 minus the average shooting 
-         success of all players against a specific defender.   
-    3.   Expected Shooting (ES): The expected shooting success of a
-         player against a specific defender. Equal to 1 minus the defender's
-         Average Shooting Defense.
-    4.   Shooting Success (SS): The shooting success of a player against a
-         specific defender. 
-    5.   Mean Shooting Success (MSS): The mean of shooting success 
-    4.   Relative Shooting Success (RSS): A measure of how efficient a player is
-         at scoring points relative to the expected points scored by an average
-         player against the same primary defender. Equal to the player's 
-         shooting success divided by the defender's Average Shooting Defense.
 
 ### Pull In Summary Statistics from Basketball Reference
 
@@ -108,16 +123,21 @@ summary_stats <- summary_stats[summary_stats$Player %in% players, ]
 #| eval: false
 library(plotrix)
  plot(1:25,seq(-25,25,length=25),type="n",xlab="",ylab="",main="Test draw.circle"); draw.circle(0, 5.25, radius = c(23.5, 23.75), nv = 100, border = "purple", col = c("blue", "white"), lty = 1, lwd = 0.25)
- #
- # col=c("#ff00ff","#ff77ff","#ffccff"),lty=1,lwd=1)
- #draw.circle(2.5,8,0.6,border="red",lty=3,lwd=3)
- #draw.circle(4,3,0.7,border="green",col="yellow",lty=1,
- # density=5,angle=30,lwd=10)
- #draw.circle(3.5,8,0.8,border="blue",lty=2,lwd=2)
+ 
 
 ```
 ### Adding Distance and Polar Coordinates for Each Shot
 
+Distance is calculated based on the definition of a three-point shot in the NBA.
+Thus, distance is calculated from the place of the shot to the center of the 
+basket. The court-facing surface of the backboard is 4 feet from the baseline. 
+The inside of the circular basket rim is 6 inches from the front of the 
+backboard and the circle has an 18 inch diameter. Adding 4 feet, 0.5 feet, and 
+9 inches places the center of the basket 5.25 feet from the baseline.
+
+$$
+shot\_distance = \sqrt{X^2 + (Y - 5.25)^2}
+$$
 ```{r}
 #| label: add-distance
 #| echo: true
@@ -138,24 +158,49 @@ for (i in seq_along(shots$DISTANCE)) {
 shots$POINTS <- points
 shots$THREE_POINT <- three_point
 
+```
 
+#### Make Some Seth Curry Specific Data Objects To Illustrate the Techniques
+
+```{r}
+#| label: seth-curry-specific-data
+#| echo: true
+#| eval: true
 sc_threes <- shots[shots$SHOOTER == "Seth Curry", "THREE_POINT"]
 sc_points <- shots[shots$SHOOTER == "Seth Curry", "POINTS"]
-sc_three_df <- shots[shots$SHOOTER == "Seth Curry" & shots$THREE_POINT == TRUE, c("X", "Y", "DISTANCE")]
-sc_three_df
-
- 
+sc_three_df <- shots[shots$SHOOTER == "Seth Curry" & shots$THREE_POINT == TRUE, 
+                     c("X", "Y", "DISTANCE")]
 ```
+```{r}
+#| label: tbl-seth-curry-data
+#| echo: true
+#| eval: true
+#| results: "asis"
+#| tbl_cap: "Examples of Seth Curry Data"
+sc_three_df |>
+  mutate_if(is.numeric, format, digits = 1, nsmall = 1) |>
+  head(5) |>
+  kable()
+```
+
 
 Note that my calculation of what is a three point shot is based on the NBA
 rules at https://official.nba.com/rule-no-1-court-dimensions-equipment/ and
 the X and Y coordinates of the shots taken. See the function `is_three_point`
 for the implementation. However, note the comparison of Seth Curry's shot 
 from the official NBA statistics for these games and those classified by the
-`is_three_point` function. 
+`is_three_point` function.
+(See @sec-is-three-point for the function definition.) 
+
+#### is_three_point.R #sec-is-three-point
+
+```r 
+{{< include R/is_three_point.R >}}
+```
+
 
 ```{r}
-#| label: compare-seth-curry-shots
+#| label: tbl-compare-seth-curry-shots
 #| echo: true
 #| eval: true
 sc_tbl <- data.frame(
@@ -177,7 +222,7 @@ sc_tbl |>
   kable(caption = "Comparison of Seth Curry's Shots")
 ```
 
-has Seth Curry with 
+@tbl-compare-seth-curry-shots has Seth Curry with 
 `r summary_stats$FGA[summary_stats$Player == "Seth Curry"]` field goal attempts,
 `r summary_stats$X3PA[summary_stats$Player == "Seth Curry"]` 
 three point attempts, and 
